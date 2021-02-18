@@ -1,0 +1,194 @@
+---
+layout: post
+title:  Practica 3"
+date:   2021-02-18 14:21:54 -0600
+categories: jekyll update
+---
+# Practica 3
+https://github.com/pedro-jose/iaw-practica3.git
+
+## Arquitectura de una aplicación web LAMP en dos niveles
+En esta practica automatizaremos la instalación y configuración de una aplicación web LAMP en dos máquinas virtuales EC2 de Amazon Web Services.(Front_End y Back_End)
+
+Para realizar los scripts se ha dividido el script utilizado anteriormente, en dos uno para cada capa.
+## Front_End
+Esta capa estará formada por un servidor Web con Apache HTTP Server. Su script quedaría de la siguiente manera:
+
+El script tendrá todop a excepción del mysql, que estará instalado en la otra capa. Esta tendrá apache, php, phpmyadmin, adminer, Goaccess controlado por contraseña.
+
+Sin embargo, para instalar phpmyadmin se hará desde el codigo fuente. Para ello, descargamos el código fuente y lo descomprimimos mediante unzip(Previamente instalado, mediante `apt install unzip`)
+
+Una vez descomprimimido lo moveremos a `/var/www/html/` bajo el nombre de phpmyadmin, por lo que la ruta quedaria: `/var/www/html/phpmyadmin`.
+
+Antes de esta instalación se realizó la configuracion del `000-default.conf`, que se movió desde el home al `/etc/apache2/sites-available/` y cuyo contenido es el que se muestra:
+
+```<VirtualHost *:80>
+        #ServerName www.example.com
+        ServerAdmin webmaster@localhost
+        DocumentRoot /var/www/html
+
+        <Directory "/var/www/html/stats">
+          AuthType Basic
+          AuthName "Acceso restringido"
+          AuthBasicProvider file
+          AuthUserFile "/home/usuario/.htpasswd"
+          Require valid-user
+        </Directory>
+
+        ErrorLog ${APACHE_LOG_DIR}/error.log
+        CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+```
+
+Hecho esto, configuramos los archivos `config.inc.php` y `config.php`, donde en ambos se debe cambiar el localhost por la ip del mysql, mediante el comando sed:
+
+- > __`sed -i "s/localhost/$IP_MYSQL/" /var/www/html/phpmyadmin/config.inc.php`
+
+- > __`sed -i "s/localhost/$IP_MYSQL/" /var/www/html/config.php`
+
+Este comando nos busca y remplaza una cadena por otra. Con esto ya estaría configurada esta capa.
+```
+#!/bin/bash
+
+# Habilitamos el modo de shell para mostrar los comandos que se ejecutan
+set -x
+
+# Actualizamos la lista de paquetes
+apt update
+
+# Actualizamos los paquetes
+apt upgrade -y
+
+# Instalamos el servidor web apache
+apt install apache2 -y
+
+
+# Instalamos los paquetes de PHP
+apt install php libapache2-mod-php php-mysql -y
+
+#---------------------------------------------------------------------------------------------------------------------------------
+# Herramientas adicionales
+mkdir /var/www/html/adminer
+cd /var/www/html/adminer
+wget https://github.com/vrana/adminer/releases/download/v4.7.7/adminer-4.7.7-mysql.php
+mv adminer-4.7.7-mysql.php index.php
+
+# Definimos variables para el htpasswd
+HTTPASSWD_USER=usuario
+HTTPASSWD_PASSWD=usuario
+HTTPASSWD_DIR=/home/ubuntu
+
+# Instalación de GoAcces
+echo "deb http://deb.goaccess.io/ $(lsb_release -cs) main" | sudo tee -a /etc/apt/sources.list.d/goaccess.list
+wget -O - https://deb.goaccess.io/gnugpg.key | sudo apt-key add -
+apt update
+apt install goaccess -y
+
+# Creacion de un directorio para cosultar las estadisticas
+mkdir -p /var/www/html/stats
+nohup goaccess /var/log/apache2/access.log -o /var/www/html/stats/index.html --log-format=COMBINED --real-time-html &
+htpasswd -bc $HTTPASSWD_DIR/.htpasswd $HTTPASSWD_USER $HTTPASSWD_PASSWD
+
+# Copiamos el archivo de configuración de Apache
+cd /home/ubuntu
+cp /home/ubuntu/000-default.conf /etc/apache2/sites-available/
+systemctl restart apache2
+
+# Instalacion de PHPMYADMIM
+IP_MYSQL=54.89.139.56
+
+# Instalamos la utilidad unzip
+apt install unzip -y
+
+# Descargamos el codigo fuente de phpMyadmin
+cd/home/ubuntu
+rm -rf phpMyAdmin-5.0.4-all-languages.zip
+wget https://files.phpmyadmin.net/phpMyAdmin/5.0.4/phpMyAdmin-5.0.4-all-languages.zip
+
+# Descomprimimos el archivo
+unzip phpMyAdmin-5.0.4-all-languages.zip
+
+# Borramos el .zip
+rm -rf phpMyAdmin-5.0.4-all-languages.zip
+
+# Movemos el directorio de phpMyadmin
+mv phpMyAdmin-5.0.4-all-languages/ /var/www/html/phpmyadmin
+
+#Configuramos el archivo config.inc.php
+cd /var/www/html/phpmyadmin
+mv config.sample.inc.php config.inc.php
+sed -i "s/localhost/$IP_MYSQL/" /var/www/html/phpmyadmin/config.inc.php
+sed -i "s/localhost/$IP_MYSQL/" /var/www/html/config.php
+
+# ------------------------------------------------------------------------------
+# Instalación de la aplicación web propuesta
+# ------------------------------------------------------------------------------
+
+cd /var/www/html
+rm -rf iaw-practica-lamp
+git clone https://github.com/josejuansanchez/iaw-practica-lamp
+mv /var/www/html/iaw-practica-lamp/src/* /var/www/html/
+
+# Eliminamos contenido inutil
+rm -rf /var/www/html/index.html
+rm -rf /var/www/html/iaw-practica-lamp
+
+# Cambiar permisos
+chown www-data:www-data * -R
+```
+
+## Back_End
+Esta capa estara formada únicamente por el mysql Server y el script de la base de datos de la aplicación web propuesta.
+
+Su script está compuesto de la siguiente manera:
+
+Primero instalamos el mysql y declaramos variables, una para cambiar la contraseña del mysql y otra que contiene la ip privada de la máquina. `DB_ROOT_PASSWD=root, IP_PRIVADA_MYSQL=172.31.84.254`.
+
+Después de que este instalado e mysql, configuramos el archivo `mysqld.cnf` para permitir conexiones desde la ip privada. Para ello, utilizamos el comando `sed -i`: 
+
+`sed -i "s/127.0.0.1/$IP_PRIVADA_MYSQL/" /etc/mysql/mysql.conf.d/mysqld.cnf`.
+
+Hecho esto reiniciamos mysql y comenzamos con la implementacion del script de la aplicacion en mysql.
+
+Descargamos la base de datos e importamos el script de creación de la base de datos.
+`mysql -u root -p$DB_ROOT_PASSWD < /home/ubuntu/iaw-practica-lamp/db/database.sql`.
+
+### Script completo
+
+```
+#!/bin/bash
+
+# Habilitamos el modo de shell para mostrar los comandos que se ejecutan
+set -x
+
+# Actualizamos la lista de paquetes
+apt update
+
+# Actualizamos los paquetes
+apt upgrade -y
+
+# Instalamos MySQL Server
+apt install mysql-server -y
+
+#Variables
+DB_ROOT_PASSWD=root
+IP_PRIVADA_MYSQL=172.31.84.254
+
+mysql -u root <<< "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '$DB_ROOT_PASSWD';"
+
+# Configuramos MySQL para permitir conexiones desde la IP privada de la instancia
+sed -i "s/127.0.0.1/$IP_PRIVADA_MYSQL/" /etc/mysql/mysql.conf.d/mysqld.cnf
+
+# Reiniciamos Mysql
+systemctl restart mysql 
+
+# ------------------------------------------------------------------------------
+# ejecutamos el script de la base de datos de la aplicación web propuesta
+# ------------------------------------------------------------------------------
+cd /home/ubuntu
+rm -rf iaw-practica-lamp
+git clone https://github.com/josejuansanchez/iaw-practica-lamp
+
+# Importamos el script de creación de la base de datos
+mysql -u root -p$DB_ROOT_PASSWD < /home/ubuntu/iaw-practica-lamp/db/database.sql
+```
