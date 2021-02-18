@@ -1,4 +1,5 @@
 ### Creación de blogs con Jekyll y GitHub Pages
+https://github.com/pedro-jose/pedro-jose.github.io.git
 
 Jekyll es un generador de sitios web estáticos que nos permite crear de forma sencilla blogs, sitios webs personales o webs para proyectos. En esta practica vamos a postear dos de las practicas hechas en este curso.
 
