@@ -22,7 +22,8 @@ Una vez descomprimimido lo moveremos a `/var/www/html/` bajo el nombre de phpmya
 
 Antes de esta instalación se realizó la configuracion del `000-default.conf`, que se movió desde el home al `/etc/apache2/sites-available/` y cuyo contenido es el que se muestra:
 
-```<VirtualHost *:80>
+```
+<VirtualHost *:80>
         #ServerName www.example.com
         ServerAdmin webmaster@localhost
         DocumentRoot /var/www/html
